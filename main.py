@@ -1,7 +1,11 @@
 import json
 import os
+import random
 
 USUARIOS = 'usuarios.json'
+DENUNCIAS = 'denuncias.json'
+login_sucesso = False 
+usuario_encontrado = None 
 
 if not os.path.exists(USUARIOS):
     try:
@@ -9,7 +13,16 @@ if not os.path.exists(USUARIOS):
             json.dump([], f)
             
     except Exception as e:
-        print(f"[ERRO] Não foi possível criar o arquivo: {e}")
+        print(f"[ERRO] Não foi possível criar o arquivo {USUARIOS}: {e}")
+
+
+if not os.path.exists(DENUNCIAS):
+    try:
+        with open(DENUNCIAS, 'w') as f:
+            json.dump([], f)
+            
+    except Exception as e:
+        print(f"[ERRO] Não foi possível criar o arquivo {DENUNCIAS}: {e}")
 
 
 while True:
@@ -59,8 +72,20 @@ while True:
                         login_sucesso = True
             
             if login_sucesso:
-                print('Você está logado.')
-            
+                status = usuario_encontrado.get('status_verificacao', 'pendente')
+
+                if status == 'aprovado':
+                    print(f"\n[SUCESSO] Login efetuado. Bem-vindo(a), {usuario_digitado}!")
+
+                elif status == 'pendente':
+                    print("\n[AVISO] Esta conta ainda está 'pendente' de análise.")
+                    print("Você poderá logar assim que ela for aprovada.")
+                    login_sucesso = False 
+
+                else:
+                    print("\n[ERRO] O cadastro desta conta foi 'reprovado' pela moderação.")
+                    login_sucesso = False
+
             else:
                 print("\n[ERRO] Usuário ou senha incorretos.")
 
@@ -133,4 +158,60 @@ while True:
                 print("\n[AVISO] Cadastro não concluído. Tente novamente.")
 
     elif escolha == '2':
-        pass
+        print("\n--- Registrar Nova Denúncia Anônima ---")
+        print("Suas informações são confidenciais.")
+        print("Por favor, preencha os dados da empresa e o motivo.")
+        print()
+        
+        empresa_nome = input("Qual o nome da empresa a ser denunciada? ")
+        empresa_local = input("Qual a localização da empresa (Cidade/Estado)? ")
+        titulo_denuncia = input("Qual o título/tipo de abuso (ex: Assédio, Horas extras não pagas)? ")
+        
+        print("\nDescreva detalhadamente o que aconteceu:")
+        print("(Para terminar, pressione ENTER em uma linha vazia)")
+        
+        descricao_linhas = []
+        while True:
+            linha = input()
+            if linha == "":
+                break
+            descricao_linhas.append(linha)
+        
+        descricao_denuncia = "\n".join(descricao_linhas)
+
+        if not empresa_nome or not titulo_denuncia or not descricao_denuncia:
+            print("\n[ERRO] Nome da empresa, Título e Descrição são obrigatórios.")
+            print("Denúncia não registrada. Tente novamente.")
+        else:
+            protocolo = str(random.randint(100000, 999999))
+
+            nova_denuncia_dados = {
+                "protocolo": protocolo,
+                "empresa_nome": empresa_nome,
+                "empresa_local": empresa_local,
+                "titulo": titulo_denuncia,
+                "descricao": descricao_denuncia,
+                "status": "Recebida"
+            }
+
+            try:
+                with open(DENUNCIAS, 'r', encoding='utf-8') as f:
+                    lista_denuncias = json.load(f)
+                
+                lista_denuncias.append(nova_denuncia_dados)
+
+                with open(DENUNCIAS, 'w', encoding='utf-8') as f:
+                    json.dump(lista_denuncias, f, indent=4)
+                
+                print("\n" + "="*40)
+                print("[SUCESSO] Denúncia registrada.")
+                print(f"  SEU NÚMERO DE PROTOCOLO É: {protocolo}")
+                print("\n  ATENÇÃO: GUARDE ESTE NÚMERO!")
+                print("  Você usará ele para checar o 'Status da Denúncia'.")
+                print("="*40)
+
+            except Exception as e:
+                print(f"\n[ERRO CRÍTICO] Não foi possível salvar sua denúncia: {e}")
+
+    else:
+        continue
