@@ -205,3 +205,16 @@ def adicionar_nova_denuncia(nova_denuncia_dados, protocolo):
     except Exception as e:
         # Caso ocorra erro ao salvar, exibe mensagem crítica de erro
         print(f"\n[ERRO CRÍTICO] Não foi possível salvar sua denúncia: {e}")
+
+
+def buscar_protocolo(lista_denuncias, protocolo_alvo):
+    # Busca uma denúncia dentro da lista pelo protocolo, retona dict da denúncia ou None
+    if not lista_denuncias:
+        return None
+
+    for denuncia in lista_denuncias:
+        # Compara o protocolo da denúncia atual com o que o usuário digitou
+        if denuncia.get('protocolo') == protocolo_alvo:
+            return denuncia
+    
+    return None # Não achou nada

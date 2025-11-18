@@ -121,6 +121,22 @@ while True:
         else:
             print("\n[AVISO] Cadastro não concluído por erro de validação.")
 
+    # usuário escolheu "3 - Status de denúncias"
+    elif escolha == '3':
+        textos.cabecalho_status() # Mostra o título da seção
+        
+        protocolo_digitado = input("Por favor, digite o seu número de protocolo: ")
+
+        # Usa a função do módulo para buscar na lista que já está carregada na memória
+        denuncia_encontrada = modulo.buscar_protocolo(denuncias_lista, protocolo_digitado)
+
+        if denuncia_encontrada:
+            # Se achou, usa o módulo de textos para formatar e exibir
+            textos.exibir_detalhes_denuncia(denuncia_encontrada)
+        else:
+            print(f"\n[ERRO] Protocolo '{protocolo_digitado}' não encontrado.")
+            print("Verifique o número e tente novamente.")
+
     # em construção...
     else:
         print('3 e 4 em construção...')
