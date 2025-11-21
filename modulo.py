@@ -105,12 +105,16 @@ def verificar_nova_conta(usuario_digitado, database_lista, senha_digitada, senha
     else:
         senha_valida = True  # Senha passou na validação
 
-    # Verifica se o arquivo do comprovante existe no caminho informado
-    if not os.path.exists(caminho_comprovante):
-        print(f"[ERRO] Arquivo não encontrado em: {caminho_comprovante}")
-        print("Dica: Copie e cole o caminho completo do arquivo.")
-    else:
-        comprovante_valido = True  # Comprovante válido
+    # Verifica se o comprovante é um link
+if caminho_comprovante.startswith("http://") or caminho_comprovante.startswith("https://"):
+    comprovante_valido = True
+    comprovante_link = caminho_comprovante  # salva o link para checagem manual depois
+    print(f"[INFO] Comprovante enviado como link: {comprovante_link}")
+    print("[STATUS] Checagem do comprovante: PENDENTE")
+else:
+    comprovante_valido = False
+    print(f"[ERRO] O comprovante informado não é um link válido: {caminho_comprovante}")
+    print("Dica: O comprovante precisa ser uma URL (http ou https).")
 
     # Se todas as validações passaram, cria e retorna o dicionário com os dados da nova conta
     if usuario_valido and senha_valida and comprovante_valido:
