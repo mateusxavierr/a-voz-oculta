@@ -1,224 +1,177 @@
-import json
 import os
-import random
+import json
+from datetime import datetime
 
-USUARIOS = 'usuarios.json'  # Nome do arquivo que armazena os dados dos usuários
-DENUNCIAS = 'denuncias.json'  # Nome do arquivo que armazena as denúncias feitas
+# Inicialização dos bancos de dados
 
-
-def inicializar_usuarios(USUARIOS):
-    # Função para garantir que o arquivo de usuários exista e carregar seus dados
-    if not os.path.exists(USUARIOS):
-        # Se o arquivo não existir, cria um arquivo vazio com uma lista vazia dentro
+def inicializar_usuarios(caminho):
+    """Carrega ou cria o arquivo de usuários."""
+    if os.path.exists(caminho):
         try:
-            with open(USUARIOS, 'w', encoding='utf-8') as f:
-                json.dump([], f)
-            return []  # Retorna lista vazia pois o arquivo acabou de ser criado
-        except Exception as e:
-            # Caso ocorra algum erro ao criar o arquivo, exibe uma mensagem e retorna lista vazia
-            print(f"[ERRO] Não foi possível criar o arquivo {USUARIOS}: {e}")
+            with open(caminho, 'r', encoding='utf-8') as arquivo:
+                return json.load(arquivo)
+        except json.JSONDecodeError:
+            print("[ERRO] Arquivo de usuários corrompido. Criando um novo.")
             return []
-    else:
-        # Se o arquivo existir, tenta carregar os dados dos usuários
-        try:
-            with open(USUARIOS, 'r', encoding='utf-8') as f:
-                return json.load(f)  # Retorna os usuários existentes no arquivo
-        except Exception as e:
-            # Caso ocorra erro na leitura do arquivo, exibe mensagem e retorna lista vazia
-            print(f"[ERRO] Não foi possível carregar o arquivo {USUARIOS}: {e}")
-            return []
+    return []
 
-def inicializar_denuncias(DENUNCIAS):
-    # Função para garantir que o arquivo de denúncias exista e carregar seus dados
-    if not os.path.exists(DENUNCIAS):
-        # Se o arquivo não existir, cria um arquivo vazio com uma lista vazia dentro
-        try:
-            with open(DENUNCIAS, 'w', encoding='utf-8') as f:
-                json.dump([], f)
-            return []  # Retorna lista vazia pois o arquivo acabou de ser criado
-        except Exception as e:
-            # Caso ocorra algum erro ao criar o arquivo, exibe uma mensagem e retorna lista vazia
-            print(f"[ERRO] Não foi possível criar o arquivo {DENUNCIAS}: {e}")
-            return []
-    else:
-        # Se o arquivo existir, tenta carregar os dados das denúncias
-        try:
-            with open(DENUNCIAS, 'r', encoding='utf-8') as f:
-                return json.load(f)  # Retorna as denúncias existentes no arquivo
-        except Exception as e:
-            # Caso ocorra erro na leitura do arquivo, exibe mensagem e retorna lista vazia
-            print(f"[ERRO] Não foi possível carregar o arquivo {DENUNCIAS}: {e}")
-            return []
-    
-def procurar_login(database_lista, usuario_digitado, senha_digitada):
-    # Função que procura um usuário na lista pelo nome e senha fornecidos
-    for dados_usuario in database_lista:
-        # Para cada usuário na lista, verifica se o nome e senha conferem
-        if dados_usuario.get('usuario') == usuario_digitado:
-            if dados_usuario.get('senha') == senha_digitada:
-                # Se encontrar correspondência, retorna os dados do usuário e True
-                return dados_usuario, True
-    # Se não encontrar, retorna None e False
-    return None, False
 
-def perguntas_nova_conta():
-    # Função que faz as perguntas para cadastro de uma nova conta
-    print("\n--- Cadastro de Nova Conta ---")
-            
-    usuario_digitado = input("Digite um nome de usuário (fictício): ")
-    senha_digitada = input("Digite uma senha: ")
-    senha_confirmada = input("Confirme sua senha: ")
-    caminho_comprovante = input("Cole o caminho completo do arquivo de comprovante: ")
+def inicializar_denuncias(caminho):
+    """Carrega ou cria o arquivo de denúncias."""
+    if os.path.exists(caminho):
+        try:
+            with open(caminho, 'r', encoding='utf-8') as arquivo:
+                return json.load(arquivo)
+        except json.JSONDecodeError:
+            print("[ERRO] Arquivo de denúncias corrompido. Criando um novo.")
+            return []
+    return []
 
-    # Retorna os dados coletados para validação posterior
-    return usuario_digitado, senha_digitada, senha_confirmada, caminho_comprovante
+
+# Validação da criação de conta
 
 def verificar_nova_conta(usuario_digitado, database_lista, senha_digitada, senha_confirmada, caminho_comprovante):
-    # Função que valida os dados fornecidos para criação de nova conta
 
-    # Inicializa variáveis de controle para validação
     usuario_valido = False
     senha_valida = False
     comprovante_valido = False
     usuario_ja_existe = False
 
-    # Verifica se o nome de usuário foi informado
+    # Verificação do nome de usuário
     if not usuario_digitado:
         print("[ERRO] O nome de usuário não pode ser vazio.")
     else:
-        # Verifica se o nome de usuário já está em uso na base de dados
         for dados_usuario in database_lista:
-            if dados_usuario.get('usuario') == usuario_digitado: 
+            if dados_usuario.get('usuario') == usuario_digitado:
                 usuario_ja_existe = True
                 break
-        
+
         if usuario_ja_existe:
             print(f"[ERRO] O nome de usuário '{usuario_digitado}' já está em uso.")
         else:
-            usuario_valido = True  # Usuário passou na validação
+            usuario_valido = True
 
-    # Verifica se a senha foi informada e se confere com a confirmação
+    # Verificação da senha
     if not senha_digitada:
         print("[ERRO] A senha não pode ser vazia.")
     elif senha_digitada != senha_confirmada:
         print("[ERRO] As senhas não conferem.")
     else:
-        senha_valida = True  # Senha passou na validação
+        senha_valida = True
 
-    # Verifica se o comprovante é um link
+    # Verificação do comprovante como link
     if caminho_comprovante.startswith("http://") or caminho_comprovante.startswith("https://"):
         comprovante_valido = True
-        comprovante_link = caminho_comprovante  # salva o link para checagem manual depois
-        print(f"[INFO] Comprovante enviado como link: {comprovante_link}")
+        print(f"[INFO] Comprovante enviado como link: {caminho_comprovante}")
         print("[STATUS] Checagem do comprovante: PENDENTE")
     else:
-        comprovante_valido = False
         print(f"[ERRO] O comprovante informado não é um link válido: {caminho_comprovante}")
-        print("Dica: O comprovante precisa ser uma URL (http ou https).")
+        print("Dica: Deve começar com http:// ou https://")
 
-    # Se todas as validações passaram, cria e retorna o dicionário com os dados da nova conta
+    # Se tudo estiver válido, retorna os dados
     if usuario_valido and senha_valida and comprovante_valido:
         return {
             "usuario": usuario_digitado,
             "senha": senha_digitada,
-            "comprovante_path": caminho_comprovante,
-            "status_verificacao": "pendente"  # Status inicial da conta após cadastro
-        }    
+            "comprovante_link": caminho_comprovante,
+            "status_verificacao": "pendente"
+        }
 
-def adicionar_usuario(database_lista, novo_usuario_dados, usuario_digitado):
-    # Função para adicionar um novo usuário à lista e salvar no arquivo JSON
-    try:
-        database_lista.append(novo_usuario_dados)  # Adiciona novo usuário na lista
-        
-        # Abre o arquivo de usuários para escrita e salva a lista atualizada formatada
-        with open(USUARIOS, 'w', encoding='utf-8') as f:
-            json.dump(database_lista, f, indent=4)
-        
-        print(f"\n[SUCESSO] Conta '{usuario_digitado}' criada!")  # Confirmação para o usuário
+    return None
 
-    except Exception as e:
-        # Caso ocorra erro ao salvar, exibe mensagem crítica de erro
-        print(f"\n[ERRO CRÍTICO] Não foi possível salvar sua conta: {e}")
+
+# Adicionar novo usuário ao sistema
+
+def adicionar_usuario(database_lista, dados_usuario, caminho_db):
+    """Salva o novo usuário no banco de dados JSON."""
+    database_lista.append(dados_usuario)
+
+    with open(caminho_db, 'w', encoding='utf-8') as arquivo:
+        json.dump(database_lista, arquivo, indent=4, ensure_ascii=False)
+
+    print("[✔] Usuário cadastrado com sucesso!")
+
+
+# Login
+
+def procurar_login(database_lista, usuario_digitado, senha_digitada):
+    """Procura usuário pelo nome e senha."""
+    for usuario in database_lista:
+        if usuario.get('usuario') == usuario_digitado and usuario.get('senha') == senha_digitada:
+            return usuario, True
+    return None, False
+
+
+# Inputs para criação de conta
+
+def perguntas_nova_conta():
+    print("\n--- Criar nova conta ---")
+    usuario = input("Digite o nome de usuário: ")
+    senha = input("Digite sua senha: ")
+    senha_confirma = input("Confirme sua senha: ")
+    comprovante = input("Cole o link do comprovante de vínculo: ")
+    return usuario, senha, senha_confirma, comprovante
+
+
+# Coleta de dados de denúncia
 
 def perguntas_denuncia():
-    # Função que coleta as informações para registrar uma nova denúncia
-    empresa_nome = input("Qual o nome da empresa a ser denunciada? ")
-    empresa_local = input("Qual a localização da empresa (Cidade/Estado)? ")
-    titulo_denuncia = input("Qual o título/tipo de abuso (ex: Assédio, Horas extras não pagas)? ")
-    
-    print("\nDescreva detalhadamente o que aconteceu:")
-    print("(Para terminar, pressione ENTER em uma linha vazia)")
-    
-    descricao_linhas = []
-    # Loop para coletar múltiplas linhas da descrição da denúncia
-    while True:
-        linha = input()
-        if linha == "":
-            break  # Encerra a coleta quando o usuário digita linha vazia
-        descricao_linhas.append(linha)
-    
-    # Junta as linhas em uma única string com quebras de linha
-    descricao_denuncia = "\n".join(descricao_linhas)
+    print("-- Dados da empresa --")
+    empresa_nome = input("Nome da empresa: ")
+    empresa_local = input("Localização: ")
+    titulo = input("Título da denúncia: ")
+    descricao = input("Descreva a denúncia: ")
+    return empresa_nome, empresa_local, titulo, descricao
 
-    # Retorna os dados coletados para validação posterior
-    return empresa_nome, empresa_local, titulo_denuncia, descricao_denuncia
 
-def verificar_denuncia(empresa_nome, empresa_local, titulo_denuncia, descricao_denuncia):
-    # Função que valida os dados da denúncia antes de salvar
-    if not empresa_nome or not titulo_denuncia or not descricao_denuncia:
-        # Campos obrigatórios não preenchidos, exibe erro e retorna None
-        print("\n[ERRO] Nome da empresa, Título e Descrição são obrigatórios.")
-        print("Denúncia não registrada. Tente novamente.")
+# Criação e validação de denúncia
+
+def gerar_codigo_protocolo():
+    agora = datetime.now()
+    return agora.strftime("PROTOC-%Y%m%d-%H%M%S")
+
+
+def verificar_denuncia(empresa_nome, empresa_local, titulo, descricao):
+    """Valida os campos da denúncia."""
+    if not empresa_nome or not titulo or not descricao:
+        print("[ERRO] Campos obrigatórios não podem estar vazios.")
         return None, None
-    else:
-        # Gera um número aleatório para protocolo da denúncia
-        protocolo = str(random.randint(100000, 999999))
 
-        # Retorna o dicionário com os dados da denúncia e o protocolo gerado
-        return {
-            "protocolo": protocolo,
-            "empresa_nome": empresa_nome,
-            "empresa_local": empresa_local,
-            "titulo": titulo_denuncia,
-            "descricao": descricao_denuncia,
-            "status": "Recebida"  # Status inicial da denúncia
-        }, protocolo
+    protocolo = gerar_codigo_protocolo()
 
-def adicionar_nova_denuncia(nova_denuncia_dados, protocolo):
-    # Função para adicionar uma nova denúncia ao arquivo JSON e informar o protocolo
-    try:
-        # Abre o arquivo de denúncias para leitura e carrega a lista atual
-        with open(DENUNCIAS, 'r', encoding='utf-8') as f:
-            lista_denuncias = json.load(f)
-        
-        # Adiciona a nova denúncia à lista
-        lista_denuncias.append(nova_denuncia_dados)
+    dados = {
+        "empresa_nome": empresa_nome,
+        "empresa_local": empresa_local,
+        "titulo": titulo,
+        "descricao": descricao,
+        "protocolo": protocolo,
+        "status": "Recebida"
+    }
 
-        # Salva a lista atualizada no arquivo, formatada para melhor leitura
-        with open(DENUNCIAS, 'w', encoding='utf-8') as f:
-            json.dump(lista_denuncias, f, indent=4)
-        
-        # Exibe mensagem de sucesso com o número de protocolo para o usuário guardar
-        print("\n" + "="*40)
-        print("[SUCESSO] Denúncia registrada.")
-        print(f"  SEU NÚMERO DE PROTOCOLO É: {protocolo}")
-        print("\n  ATENÇÃO: GUARDE ESTE NÚMERO!")
-        print("  Você usará ele para checar o 'Status da Denúncia'.")
-        print("="*40)
-
-    except Exception as e:
-        # Caso ocorra erro ao salvar, exibe mensagem crítica de erro
-        print(f"\n[ERRO CRÍTICO] Não foi possível salvar sua denúncia: {e}")
+    return dados, protocolo
 
 
-def buscar_protocolo(lista_denuncias, protocolo_alvo):
-    # Busca uma denúncia dentro da lista pelo protocolo, retona dict da denúncia ou None
-    if not lista_denuncias:
-        return None
+def adicionar_nova_denuncia(denuncia, caminho):
+    """Adiciona denúncia ao banco de dados."""
+    denuncias = inicializar_denuncias(caminho)
+    denuncias.append(denuncia)
 
-    for denuncia in lista_denuncias:
-        # Compara o protocolo da denúncia atual com o que o usuário digitou
-        if denuncia.get('protocolo') == protocolo_alvo:
-            return denuncia
-    
-    return None # Não achou nada
+    with open(caminho, 'w', encoding='utf-8') as arquivo:
+        json.dump(denuncias, arquivo, indent=4, ensure_ascii=False)
+
+    print(f"[✔] Denúncia registrada! Protocolo: {denuncia['protocolo']}")
+
+
+# Busca de denúncias
+
+def buscar_protocolo(denuncias_lista, protocolo_digitado):
+    """Busca denúncia pelo número de protocolo."""
+    for d in denuncias_lista:
+        if d.get("protocolo") == protocolo_digitado:
+            return d
+    return None
+
+
+def encontrar_denuncias_por_usuario(usuario, denuncias_lista):
+    """Retorna todas as denúncias feitas por um usuário."""
+    return [d for d in denuncias_lista if d.get("usuario") == usuario]
