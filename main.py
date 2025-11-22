@@ -2,141 +2,112 @@
 import modulo
 import textos
 
-# cria variáveis essenciais para o funcionamento do código
+# arquivos JSON
 USUARIOS = 'usuarios.json'
 DENUNCIAS = 'denuncias.json'
-login_sucesso = False 
-usuario_encontrado = None 
-database_lista = None
 
-# inicializa o json de usuários e denúncias, caso não existam eles são criados
+# inicializa banco de dados
 database_lista = modulo.inicializar_usuarios(USUARIOS)
 denuncias_lista = modulo.inicializar_denuncias(DENUNCIAS)
 
-# loop principal, onde todo o código vai rodar
+# estado de login
+login_sucesso = False
+usuario_encontrado = None
+usuario_tipo = None  # 'user' ou 'admin'
+
 while True:
-    textos.menu_inicial() # printa o menu principal
-    escolha = input(textos.escolha()) # input para o usuário escolher uma opção
+    textos.menu_inicial()
+    escolha = input(textos.escolha())
     print()
 
-    # usuário escolheu "1 - Login"
+    # ===== LOGIN =====
     if escolha == '1':
-        textos.perguntar_conta() # pergunta se o usuário tem uma conta
-
-        escolha_auth = input(textos.escolha()) # input para o usuário escolher uma opção
+        textos.perguntar_conta()
+        escolha_auth = input(textos.escolha())
         print()
 
-        # caso escolha que já tem uma conta e esteja logado
-        if escolha_auth == '1' and login_sucesso == True:
-            textos.ja_esta_logado() # avisa que usuário já está logado
-            # volta para o começo do loop, menu principal
+        # criar nova conta
+        if escolha_auth == '2':
+            usuario_digitado, senha_digitada, senha_confirma, caminho_comprovante = modulo.perguntas_nova_conta()
+            novo_usuario = modulo.verificar_nova_conta(usuario_digitado, database_lista,
+                                                       senha_digitada, senha_confirma, caminho_comprovante)
+            if novo_usuario:
+                modulo.adicionar_usuario(database_lista, novo_usuario, USUARIOS)
+                database_lista = modulo.inicializar_usuarios(USUARIOS)
+                print("\n[SUCESSO] Cadastro concluído!")
+            else:
+                print("\n[AVISO] Cadastro não concluído por erro de validação.")
+            continue
 
-        # caso escolha que já tem uma conta e não esteja logado
-        elif escolha_auth == '1' and login_sucesso == False:
-            # login, pede para digitar usuário e senha para entrar na conta
-            print("\n--- Login ---")
+        # login
+        elif escolha_auth == '1':
             usuario_digitado = input("Usuário: ")
-            senha_digitada = input("Senha: ") 
-            
-            # procura na db se os dados conferem, e coloca true ou false no sucesso do login
-            usuario_encontrado, login_sucesso = modulo.procurar_login(database_lista, usuario_digitado, senha_digitada)
-            
-            # caso o login seja bem sucedido
-            if login_sucesso:
-                status = usuario_encontrado.get('status_verificacao', 'pendente')
+            senha_digitada = input("Senha: ")
 
-                # esse bloco verifica se o usuário teve o comprovante de vínculo aprovado
-                # aprovado
-                if status == 'aprovado':
-                    print(f"\n[SUCESSO] Login efetuado. Bem-vindo(a), {usuario_digitado}!")
-                    # loga na conta
-
-                # pendente
-                elif status == 'pendente':
-                    print("\n[AVISO] Esta conta ainda está 'pendente' de análise.")
-                    print("Você poderá logar assim que ela for aprovada.")
-                    login_sucesso = False # não entra na conta
-
-                # repovado
+            # primeiro verifica se é admin
+            usuario_encontrado, usuario_tipo = modulo.login_usuario(usuario_digitado, senha_digitada, database_lista)
+            if usuario_encontrado:
+                login_sucesso = True
+                if usuario_tipo == 'admin':
+                    print("[ADMIN] Login bem-sucedido!")
                 else:
-                    print("\n[ERRO] O cadastro desta conta foi 'reprovado' pela moderação.")
-                    login_sucesso = False # não entra na conta
-
-            # caso o login não tenha sucesso
+                    status = usuario_encontrado.get("status_verificacao", "pendente")
+                    if status == "aprovado":
+                        print(f"\n[SUCESSO] Login efetuado. Bem-vindo(a), {usuario_digitado}!")
+                    else:
+                        print("\n[AVISO] Conta pendente ou reprovada. Aguarde aprovação do admin.")
+                        login_sucesso = False
             else:
                 print("\n[ERRO] Usuário ou senha incorretos.")
+            continue
 
-        # caso escolha que não tem conta, criar nova
-        elif escolha_auth == '2':
-            # perguntas para criar nova conta, respostas salvas em variáveis
-            usuario_digitado, senha_digitada, senha_confirmada, caminho_comprovante = modulo.perguntas_nova_conta() 
-
-            # criação de variáveis essenciais
-            usuario_valido = False
-            senha_valida = False
-            comprovante_valido = False
-
-            # inicializar db de usuários, caso ainda não tenha sido
-            modulo.inicializar_usuarios(USUARIOS)
-            
-            # variável para criação de usuário
-            usuario_ja_existe = False
-            
-            # variáveis pro código não quebrar
-            usuario_ja_existe = False
-            usuario_valido = False
-            senha_valida = False
-            comprovante_valido = False
-
-            # juntar todos os dados do usuário, caso válidos
-            novo_usuario_dados = modulo.verificar_nova_conta(usuario_digitado, database_lista, senha_digitada, senha_confirmada, caminho_comprovante)
-
-            # verifica se os dados existem
-            if novo_usuario_dados:
-                # se sim, adiciona à database
-                modulo.adicionar_usuario(database_lista, novo_usuario_dados, usuario_digitado)
-                # e adiciona na memória do programa
-                database_lista = modulo.inicializar_usuarios(USUARIOS)
-
+    # ===== MENU DO USUÁRIO =====
+    if login_sucesso and usuario_tipo == 'user':
+        print("\n1 - Denunciar\n2 - Consultar status de denúncia\n3 - Logout")
+        escolha_user = input("Escolha: ")
+        if escolha_user == '1':
+            empresa, local, titulo, descricao = modulo.perguntas_denuncia()
+            nova_denuncia, protocolo = modulo.verificar_denuncia(empresa, local, titulo, descricao)
+            if nova_denuncia:
+                nova_denuncia['usuario'] = usuario_encontrado['usuario']
+                modulo.adicionar_nova_denuncia(nova_denuncia, DENUNCIAS)
+        elif escolha_user == '2':
+            protocolo_digitado = input("Digite o número do protocolo: ")
+            denuncia_encontrada = modulo.buscar_protocolo(denuncias_lista, protocolo_digitado)
+            if denuncia_encontrada:
+                textos.exibir_detalhes_denuncia(denuncia_encontrada)
             else:
-                # se não, avisa que deu erro
-                print("\n[AVISO] Cadastro não concluído por erro de validação.")
-        
-        # caso o cadastro não dê certo
-        else:
-            print("\n[AVISO] Cadastro não concluído. Tente novamente.")
+                print("\n[ERRO] Protocolo não encontrado.")
+        elif escolha_user == '3':
+            login_sucesso = False
+            usuario_tipo = None
+        continue
 
-    # usuário escolheu "2 - Denunciar"
-    elif escolha == '2':
-        textos.denuncia() # printa o texto sobre denunciar
-        
-        # faz o questionário de denúncia e salva as respostas em variáveis
-        empresa_nome, empresa_local, titulo_denuncia, descricao_denuncia = modulo.perguntas_denuncia()
+    # ===== MENU DO ADMIN =====
+    if login_sucesso and usuario_tipo == 'admin':
+        print("\n1 - Listar usuários\n2 - Aprovar/Reprovar usuário\n3 - Listar denúncias\n4 - Alterar status denúncia\n5 - Logout")
+        escolha_admin = input("Escolha: ")
+        if escolha_admin == '1':
+            modulo.listar_usuarios(database_lista)
+        elif escolha_admin == '2':
+            u = input("Usuário alvo: ")
+            s = input("Novo status (aprovado/reprovado): ")
+            modulo.aprovar_reprovar_usuario(database_lista, USUARIOS, u, s)
+            database_lista = modulo.inicializar_usuarios(USUARIOS)
+        elif escolha_admin == '3':
+            modulo.listar_denuncias(denuncias_lista)
+        elif escolha_admin == '4':
+            p = input("Protocolo: ")
+            s = input("Novo status: ")
+            modulo.alterar_status_denuncia(denuncias_lista, DENUNCIAS, p, s)
+            denuncias_lista = modulo.inicializar_denuncias(DENUNCIAS)
+        elif escolha_admin == '5':
+            login_sucesso = False
+            usuario_tipo = None
+        continue
 
-        # verifica se a denúncia é válida e se for salva em uma variável e também o protocolo
-        nova_denuncia_dados, protocolo = modulo.verificar_denuncia(empresa_nome, empresa_local, titulo_denuncia, descricao_denuncia)
-        if nova_denuncia_dados:
-            # salva a denúncia na database caso válido
-            modulo.adicionar_nova_denuncia(nova_denuncia_dados, protocolo)
-        else:
-            print("\n[AVISO] Cadastro não concluído por erro de validação.")
-
-    # usuário escolheu "3 - Status de denúncias"
-    elif escolha == '3':
-        textos.cabecalho_status() # Mostra o título da seção
-        
-        protocolo_digitado = input("Por favor, digite o seu número de protocolo: ")
-
-        # Usa a função do módulo para buscar na lista que já está carregada na memória
-        denuncia_encontrada = modulo.buscar_protocolo(denuncias_lista, protocolo_digitado)
-
-        if denuncia_encontrada:
-            # Se achou, usa o módulo de textos para formatar e exibir
-            textos.exibir_detalhes_denuncia(denuncia_encontrada)
-        else:
-            print(f"\n[ERRO] Protocolo '{protocolo_digitado}' não encontrado.")
-            print("Verifique o número e tente novamente.")
-
-    # em construção...
-    else:
-        print('3 e 4 em construção...')
+    # ===== MENU INICIAL (não logado) =====
+    if not login_sucesso:
+        print("1 - Login, 2 - Sair")
+        if input("Escolha: ") == '2':
+            break
