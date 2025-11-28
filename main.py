@@ -1,113 +1,142 @@
-# importar módulos do próprio projeto
 import modulo
 import textos
 
-# arquivos JSON
+# Configuração de Arquivos
 USUARIOS = 'usuarios.json'
 DENUNCIAS = 'denuncias.json'
 
-# inicializa banco de dados
+# Carga Inicial de Dados (Criptografados)
 database_lista = modulo.inicializar_usuarios(USUARIOS)
 denuncias_lista = modulo.inicializar_denuncias(DENUNCIAS)
 
-# estado de login
+# Variáveis de Estado
 login_sucesso = False
 usuario_encontrado = None
-usuario_tipo = None  # 'user' ou 'admin'
+usuario_tipo = None 
 
 while True:
-    textos.menu_inicial()
-    escolha = input(textos.escolha())
-    print()
-
-    # ===== LOGIN =====
-    if escolha == '1':
-        textos.perguntar_conta()
-        escolha_auth = input(textos.escolha())
+    
+    # ==========================================
+    # 1. MENU PÚBLICO (NÃO LOGADO)
+    # ==========================================
+    if not login_sucesso:
+        textos.menu_inicial()
+        escolha = input(textos.escolha())
         print()
 
-        # criar nova conta
-        if escolha_auth == '2':
-            usuario_digitado, senha_digitada, senha_confirma, caminho_comprovante = modulo.perguntas_nova_conta()
-            novo_usuario = modulo.verificar_nova_conta(usuario_digitado, database_lista,
-                                                       senha_digitada, senha_confirma, caminho_comprovante)
-            if novo_usuario:
-                modulo.adicionar_usuario(database_lista, novo_usuario, USUARIOS)
-                database_lista = modulo.inicializar_usuarios(USUARIOS)
-                print("\n[SUCESSO] Cadastro concluído!")
-            else:
-                print("\n[AVISO] Cadastro não concluído por erro de validação.")
-            continue
+        # --- LOGIN / CADASTRO ---
+        if escolha == '1':
+            textos.perguntar_conta()
+            auth = input(textos.escolha())
+            print()
 
-        # login
-        elif escolha_auth == '1':
-            usuario_digitado = input("Usuário: ")
-            senha_digitada = input("Senha: ")
-
-            # primeiro verifica se é admin
-            usuario_encontrado, usuario_tipo = modulo.login_usuario(usuario_digitado, senha_digitada, database_lista)
-            if usuario_encontrado:
-                login_sucesso = True
-                if usuario_tipo == 'admin':
-                    print("[ADMIN] Login bem-sucedido!")
-                else:
-                    status = usuario_encontrado.get("status_verificacao", "pendente")
-                    if status == "aprovado":
-                        print(f"\n[SUCESSO] Login efetuado. Bem-vindo(a), {usuario_digitado}!")
+            # 1.1 Fazer Login
+            if auth == '1':
+                user = input("Usuário: ")
+                senha = input("Senha: ")
+                usuario_encontrado, usuario_tipo = modulo.login_usuario(user, senha, database_lista)
+                
+                if usuario_encontrado:
+                    if usuario_tipo == 'admin':
+                        print("\n[ADMIN] Painel acessado.")
+                        login_sucesso = True
                     else:
-                        print("\n[AVISO] Conta pendente ou reprovada. Aguarde aprovação do admin.")
-                        login_sucesso = False
-            else:
-                print("\n[ERRO] Usuário ou senha incorretos.")
-            continue
+                        status = usuario_encontrado.get("status_verificacao", "pendente")
+                        if status == "aprovado":
+                            print(f"\n[SUCESSO] Bem-vindo(a), {user}!")
+                            login_sucesso = True
+                        else:
+                            print(f"\n[AVISO] Conta {status}. Contate o suporte.")
+                else:
+                    print("\n[ERRO] Credenciais inválidas.")
 
-    # ===== MENU DO USUÁRIO =====
-    if login_sucesso and usuario_tipo == 'user':
-        print("\n1 - Denunciar\n2 - Consultar status de denúncia\n3 - Logout")
-        escolha_user = input("Escolha: ")
-        if escolha_user == '1':
-            empresa, local, titulo, descricao = modulo.perguntas_denuncia()
-            nova_denuncia, protocolo = modulo.verificar_denuncia(empresa, local, titulo, descricao)
-            if nova_denuncia:
-                nova_denuncia['usuario'] = usuario_encontrado['usuario']
-                modulo.adicionar_nova_denuncia(nova_denuncia, DENUNCIAS)
-        elif escolha_user == '2':
-            protocolo_digitado = input("Digite o número do protocolo: ")
-            denuncia_encontrada = modulo.buscar_protocolo(denuncias_lista, protocolo_digitado)
-            if denuncia_encontrada:
-                textos.exibir_detalhes_denuncia(denuncia_encontrada)
-            else:
-                print("\n[ERRO] Protocolo não encontrado.")
-        elif escolha_user == '3':
-            login_sucesso = False
-            usuario_tipo = None
-        continue
+            # 1.2 Criar Conta
+            elif auth == '2':
+                u, s, sc, comp = modulo.perguntas_nova_conta()
+                novo = modulo.verificar_nova_conta(u, database_lista, s, sc, comp)
+                if novo:
+                    modulo.adicionar_usuario(database_lista, novo, USUARIOS)
+                    database_lista = modulo.inicializar_usuarios(USUARIOS) # Recarrega
+                else:
+                    print("\n[FALHA] Erro na validação.")
 
-    # ===== MENU DO ADMIN =====
-    if login_sucesso and usuario_tipo == 'admin':
-        print("\n1 - Listar usuários\n2 - Aprovar/Reprovar usuário\n3 - Listar denúncias\n4 - Alterar status denúncia\n5 - Logout")
-        escolha_admin = input("Escolha: ")
-        if escolha_admin == '1':
+        # --- DENÚNCIA ANÔNIMA ---
+        elif escolha == '2':
+            emp, loc, tit, desc, pub = modulo.perguntas_denuncia()
+            nova, prot = modulo.verificar_denuncia(emp, loc, tit, desc, pub, denuncias_lista)
+            if nova:
+                modulo.adicionar_nova_denuncia(nova, DENUNCIAS)
+                denuncias_lista = modulo.inicializar_denuncias(DENUNCIAS)
+
+        # --- CONSULTAR STATUS ---
+        elif escolha == '3':
+            textos.cabecalho_status()
+            prot = input("Protocolo: ")
+            d = modulo.buscar_protocolo(denuncias_lista, prot)
+            if d: textos.exibir_detalhes_denuncia(d)
+            else: print("\n[ERRO] Não encontrado.")
+
+        # --- FEED REDE SOCIAL ---
+        elif escolha == '4':
+            feed = modulo.obter_feed_social(denuncias_lista)
+            textos.exibir_feed_social(feed)
+            input("\nENTER para voltar...")
+
+        # --- SAIR ---
+        elif escolha == '0':
+             print("Saindo...")
+             break
+        else:
+             print("Opção inválida.")
+
+    # ==========================================
+    # 2. MENU ADMIN
+    # ==========================================
+    elif login_sucesso and usuario_tipo == 'admin':
+        print("\n--- PAINEL ADMIN ---")
+        print("1-Listar Users | 2-Aprovar/Reprovar | 3-Listar Denúncias | 4-Alterar Status | 0-Logout")
+        adm = input("Escolha: ")
+
+        if adm == '1':
             modulo.listar_usuarios(database_lista)
-        elif escolha_admin == '2':
-            u = input("Usuário alvo: ")
-            s = input("Novo status (aprovado/reprovado): ")
-            modulo.aprovar_reprovar_usuario(database_lista, USUARIOS, u, s)
+        elif adm == '2':
+            alvo = input("User: ")
+            st = input("Status (aprovado/reprovado): ")
+            modulo.aprovar_reprovar_usuario(database_lista, USUARIOS, alvo, st, denuncias_lista, DENUNCIAS)
+            # Recarrega DBs para garantir sincronia
             database_lista = modulo.inicializar_usuarios(USUARIOS)
-        elif escolha_admin == '3':
-            modulo.listar_denuncias(denuncias_lista)
-        elif escolha_admin == '4':
-            p = input("Protocolo: ")
-            s = input("Novo status: ")
-            modulo.alterar_status_denuncia(denuncias_lista, DENUNCIAS, p, s)
             denuncias_lista = modulo.inicializar_denuncias(DENUNCIAS)
-        elif escolha_admin == '5':
+        elif adm == '3':
+            modulo.listar_denuncias(denuncias_lista)
+        elif adm == '4':
+            prot = input("Protocolo: ")
+            st = input("Novo Status: ")
+            modulo.alterar_status_denuncia(denuncias_lista, DENUNCIAS, prot, st)
+            denuncias_lista = modulo.inicializar_denuncias(DENUNCIAS)
+        elif adm == '0':
             login_sucesso = False
             usuario_tipo = None
-        continue
 
-    # ===== MENU INICIAL (não logado) =====
-    if not login_sucesso:
-        print("1 - Login, 2 - Sair")
-        if input("Escolha: ") == '2':
-            break
+    # ==========================================
+    # 3. MENU USUÁRIO COMUM
+    # ==========================================
+    elif login_sucesso and usuario_tipo == 'user':
+        print(f"\n--- Menu: {usuario_encontrado['usuario']} ---")
+        print("1-Denunciar (Vinculada) | 2-Consultar Status | 0-Logout")
+        usr = input("Escolha: ")
+
+        if usr == '1':
+            emp, loc, tit, desc, pub = modulo.perguntas_denuncia()
+            nova, prot = modulo.verificar_denuncia(emp, loc, tit, desc, pub, denuncias_lista)
+            if nova:
+                nova['usuario'] = usuario_encontrado['usuario']
+                modulo.adicionar_nova_denuncia(nova, DENUNCIAS)
+                denuncias_lista = modulo.inicializar_denuncias(DENUNCIAS)
+        elif usr == '2':
+            prot = input("Protocolo: ")
+            d = modulo.buscar_protocolo(denuncias_lista, prot)
+            if d: textos.exibir_detalhes_denuncia(d)
+            else: print("\n[ERRO] Não encontrado.")
+        elif usr == '0':
+            login_sucesso = False
+            usuario_tipo = None
