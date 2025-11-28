@@ -1,215 +1,167 @@
 import os
 import json
 from datetime import datetime
+import random 
+import seguranca 
 
 # ==========================================
-# 1. INICIALIZAÇÃO E ARQUIVOS
+# 1. INICIALIZAÇÃO DE ARQUIVOS
 # ==========================================
 
 def inicializar_usuarios(arquivo):
-    """Carrega usuários ou cria arquivo com admin padrão se não existir."""
-    if not os.path.exists(arquivo):
-        # Cria arquivo com admin padrão
-        usuarios = [{"usuario": "admin", "senha": "1234", "tipo": "admin"}]
-        try:
-            with open(arquivo, "w", encoding='utf-8') as f:
-                json.dump(usuarios, f, indent=4, ensure_ascii=False)
-            return usuarios
-        except Exception as e:
-            print(f"[ERRO] Falha ao criar arquivo de usuários: {e}")
-            return []
-    else:
-        try:
-            with open(arquivo, "r", encoding='utf-8') as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            print("[ERRO] Arquivo de usuários corrompido. Resetando para padrão.")
-            return [{"usuario": "admin", "senha": "1234", "tipo": "admin"}]
+    """Carrega DB ou cria admin padrão se vazio."""
+    lista = seguranca.ler_seguro(arquivo)
+    if not lista:
+        padrao = [{"usuario": "admin", "senha": "1234", "tipo": "admin"}]
+        seguranca.salvar_seguro(padrao, arquivo)
+        return padrao
+    return lista
 
 def inicializar_denuncias(caminho):
-    """Carrega ou cria o arquivo de denúncias."""
-    if os.path.exists(caminho):
-        try:
-            with open(caminho, 'r', encoding='utf-8') as arquivo:
-                return json.load(arquivo)
-        except json.JSONDecodeError:
-            print("[ERRO] Arquivo de denúncias corrompido. Criando um novo.")
-            return []
-    return []
+    """Carrega DB de denúncias."""
+    return seguranca.ler_seguro(caminho)
 
 # ==========================================
 # 2. AUTENTICAÇÃO E CADASTRO
 # ==========================================
 
 def login_usuario(usuario, senha, database_lista):
-    """Verifica credenciais e retorna usuário e tipo."""
+    """Autentica usuário e retorna objeto + tipo (user/admin)."""
     for u in database_lista:
         if u["usuario"] == usuario and u["senha"] == senha:
-            # Se tiver chave 'tipo', usa ela. Se não, assume 'user'
-            tipo = u.get("tipo", "user")
-            return u, tipo
+            return u, u.get("tipo", "user")
     return None, None
 
 def perguntas_nova_conta():
     print("\n--- Criar nova conta ---")
-    usuario = input("Digite o nome de usuário: ")
-    senha = input("Digite sua senha: ")
-    senha_confirma = input("Confirme sua senha: ")
-    comprovante = input("Cole o link do comprovante de vínculo (http/https): ")
-    return usuario, senha, senha_confirma, comprovante
+    return (input("Usuário: "), input("Senha: "), 
+            input("Confirme senha: "), input("Link do comprovante: "))
 
-def verificar_nova_conta(usuario_digitado, database_lista, senha_digitada, senha_confirmada, caminho_comprovante):
-    usuario_valido = False
-    senha_valida = False
-    comprovante_valido = False
-    usuario_ja_existe = False
+def verificar_nova_conta(user, db_lista, senha, senha_conf, link):
+    """Valida duplicidade, senha e formato do link."""
+    # 1. Validação de Usuário
+    if not user: return print("[ERRO] Usuário vazio.")
+    if any(u.get('usuario') == user for u in db_lista):
+        return print(f"[ERRO] '{user}' já existe.")
 
-    # Verificação do nome de usuário
-    if not usuario_digitado:
-        print("[ERRO] O nome de usuário não pode ser vazio.")
-    else:
-        for dados_usuario in database_lista:
-            if dados_usuario.get('usuario') == usuario_digitado:
-                usuario_ja_existe = True
-                break
-        if usuario_ja_existe:
-            print(f"[ERRO] O nome de usuário '{usuario_digitado}' já está em uso.")
-        else:
-            usuario_valido = True
+    # 2. Validação de Senha
+    if not senha: return print("[ERRO] Senha vazia.")
+    if senha != senha_conf: return print("[ERRO] Senhas não conferem.")
 
-    # Verificação da senha
-    if not senha_digitada:
-        print("[ERRO] A senha não pode ser vazia.")
-    elif senha_digitada != senha_confirmada:
-        print("[ERRO] As senhas não conferem.")
-    else:
-        senha_valida = True
+    # 3. Validação de Link
+    if not link.startswith(("http://", "https://")):
+        return print("[ERRO] Link deve começar com http:// ou https://")
 
-    # Verificação do comprovante como link
-    if caminho_comprovante.startswith("http://") or caminho_comprovante.startswith("https://"):
-        comprovante_valido = True
-        print(f"[INFO] Comprovante reconhecido como link.")
-    else:
-        print(f"[ERRO] O comprovante deve ser um link (começar com http:// ou https://)")
+    return {
+        "usuario": user, "senha": senha, "tipo": "user",
+        "comprovante_link": link, "status_verificacao": "pendente"
+    }
 
-    # Retorno
-    if usuario_valido and senha_valida and comprovante_valido:
-        return {
-            "usuario": usuario_digitado,
-            "senha": senha_digitada,
-            "tipo": "user", # Define explicitamente como user comum
-            "comprovante_link": caminho_comprovante,
-            "status_verificacao": "pendente"
-        }
-    return None
-
-def adicionar_usuario(database_lista, dados_usuario, caminho_db):
-    database_lista.append(dados_usuario)
-    with open(caminho_db, 'w', encoding='utf-8') as arquivo:
-        json.dump(database_lista, arquivo, indent=4, ensure_ascii=False)
+def adicionar_usuario(db_lista, dados, caminho):
+    db_lista.append(dados)
+    seguranca.salvar_seguro(db_lista, caminho)
     print("[✔] Usuário cadastrado com sucesso!")
 
 # ==========================================
-# 3. DENÚNCIAS (USUÁRIO)
+# 3. DENÚNCIAS E FEED
 # ==========================================
 
 def perguntas_denuncia():
-    print("-- Dados da empresa --")
-    empresa_nome = input("Nome da empresa: ")
-    empresa_local = input("Localização: ")
-    titulo = input("Título da denúncia: ")
-    descricao = input("Descreva a denúncia: ")
-    return empresa_nome, empresa_local, titulo, descricao
+    print("-- Dados da denúncia --")
+    emp = input("Empresa: ")
+    loc = input("Localização: ")
+    tit = input("Título: ")
+    desc = input("Descrição: ")
+    
+    print("\n[REDE SOCIAL] Publicar no feed após encerramento?")
+    publica = input("S/N: ").upper() == 'S'
+    return emp, loc, tit, desc, publica
 
-def gerar_codigo_protocolo():
-    agora = datetime.now()
-    return agora.strftime("PROTOC-%Y%m%d-%H%M%S")
+def gerar_codigo_protocolo(lista):
+    """Gera protocolo único formato YYNNNN."""
+    ano = datetime.now().strftime("%y")
+    while True:
+        proto = f"{ano}{random.randint(1000, 9999)}"
+        if not any(d.get("protocolo") == proto for d in lista):
+            return proto
 
-def verificar_denuncia(empresa_nome, empresa_local, titulo, descricao):
-    if not empresa_nome or not titulo or not descricao:
-        print("[ERRO] Campos obrigatórios não podem estar vazios.")
+def verificar_denuncia(emp, loc, tit, desc, publica, lista):
+    if not all([emp, tit, desc]):
+        print("[ERRO] Campos obrigatórios vazios.")
         return None, None
     
-    protocolo = gerar_codigo_protocolo()
-    dados = {
-        "empresa_nome": empresa_nome,
-        "empresa_local": empresa_local,
-        "titulo": titulo,
-        "descricao": descricao,
-        "protocolo": protocolo,
-        "status": "Recebida"
-    }
-    return dados, protocolo
+    prot = gerar_codigo_protocolo(lista)
+    return {
+        "usuario": "Anônimo", "empresa_nome": emp, "empresa_local": loc,
+        "titulo": tit, "descricao": desc, "publica": publica,
+        "protocolo": prot, "status": "Recebida"
+    }, prot
 
-def adicionar_nova_denuncia(denuncia, caminho):
-    denuncias = inicializar_denuncias(caminho)
-    denuncias.append(denuncia)
-    with open(caminho, 'w', encoding='utf-8') as arquivo:
-        json.dump(denuncias, arquivo, indent=4, ensure_ascii=False)
-    print(f"[✔] Denúncia registrada! Protocolo: {denuncia['protocolo']}")
+def adicionar_nova_denuncia(dados, caminho):
+    lista = seguranca.ler_seguro(caminho)
+    lista.append(dados)
+    seguranca.salvar_seguro(lista, caminho)
+    print(f"[✔] Denúncia registrada! Protocolo: {dados['protocolo']}")
 
-def buscar_protocolo(denuncias_lista, protocolo_digitado):
-    for d in denuncias_lista:
-        if d.get("protocolo") == protocolo_digitado:
-            return d
+def buscar_protocolo(lista, protocolo):
+    for d in lista:
+        if d.get("protocolo") == protocolo: return d
     return None
 
+def obter_feed_social(lista):
+    """Filtra denúncias públicas e encerradas."""
+    return [d for d in lista if d.get("publica") and d.get("status") == "Encerrada"]
+
 # ==========================================
-# 4. FUNÇÕES DE ADMIN (NOVAS)
+# 4. ADMINISTRAÇÃO
 # ==========================================
 
-def listar_usuarios(database_lista):
-    print("\n--- Lista de Usuários ---")
-    encontrou = False
-    for u in database_lista:
-        if u.get("tipo") != "admin": # Não precisa listar o admin
-            status = u.get("status_verificacao", "N/A")
-            print(f"Usuário: {u['usuario']} | Status: {status} | Link: {u.get('comprovante_link')}")
-            encontrou = True
-    if not encontrou:
-        print("Nenhum usuário comum cadastrado.")
+def listar_usuarios(lista):
+    print("\n--- Usuários Comuns ---")
+    users = [u for u in lista if u.get("tipo") != "admin"]
+    if not users: print("Nenhum usuário encontrado.")
+    for u in users:
+        print(f"User: {u['usuario']} | Status: {u.get('status_verificacao')} | Link: {u.get('comprovante_link')}")
 
-def aprovar_reprovar_usuario(database_lista, caminho_db, usuario_alvo, novo_status):
-    novo_status = novo_status.lower()
-    if novo_status not in ['aprovado', 'reprovado']:
-        print("[ERRO] Status deve ser 'aprovado' ou 'reprovado'.")
-        return
-
-    encontrado = False
-    for u in database_lista:
-        if u['usuario'] == usuario_alvo:
-            u['status_verificacao'] = novo_status
-            encontrado = True
-            print(f"[SUCESSO] Usuário {usuario_alvo} agora está: {novo_status}")
-            break
+def aprovar_reprovar_usuario(db_users, path_users, alvo, status, db_denuncias, path_denuncias):
+    if status not in ['aprovado', 'reprovado']: return print("[ERRO] Status inválido.")
     
-    if encontrado:
-        # Salva no arquivo
-        with open(caminho_db, 'w', encoding='utf-8') as arquivo:
-            json.dump(database_lista, arquivo, indent=4, ensure_ascii=False)
+    # 1. Atualiza Usuário
+    found = False
+    for u in db_users:
+        if u['usuario'] == alvo:
+            u['status_verificacao'] = status
+            found = True
+            break
+            
+    if found:
+        seguranca.salvar_seguro(db_users, path_users)
+        print(f"[SUCESSO] Usuário atualizado para: {status}")
+        
+        # 2. Cascata: Cancela denúncias se reprovado
+        if status == 'reprovado':
+            alterou = False
+            for d in db_denuncias:
+                if d.get('usuario') == alvo:
+                    d['status'] = 'Cancelada (Usuário Reprovado)'
+                    alterou = True
+            if alterou:
+                seguranca.salvar_seguro(db_denuncias, path_denuncias)
+                print("[SISTEMA] Denúncias do usuário canceladas.")
     else:
         print("[ERRO] Usuário não encontrado.")
 
-def listar_denuncias(denuncias_lista):
-    print("\n--- Lista de Denúncias ---")
-    if not denuncias_lista:
-        print("Nenhuma denúncia registrada.")
-        return
-
-    for d in denuncias_lista:
+def listar_denuncias(lista):
+    print("\n--- Todas as Denúncias ---")
+    if not lista: print("Nenhuma denúncia.")
+    for d in lista:
         print(f"Prot: {d['protocolo']} | Empresa: {d['empresa_nome']} | Status: {d['status']}")
 
-def alterar_status_denuncia(denuncias_lista, caminho_db, protocolo, novo_status):
-    encontrado = False
-    for d in denuncias_lista:
+def alterar_status_denuncia(lista, caminho, protocolo, status):
+    for d in lista:
         if d['protocolo'] == protocolo:
-            d['status'] = novo_status
-            encontrado = True
-            print(f"[SUCESSO] Protocolo {protocolo} atualizado para: {novo_status}")
-            break
-    
-    if encontrado:
-        with open(caminho_db, 'w', encoding='utf-8') as arquivo:
-            json.dump(denuncias_lista, arquivo, indent=4, ensure_ascii=False)
-    else:
-        print("[ERRO] Protocolo não encontrado.")
+            d['status'] = status
+            seguranca.salvar_seguro(lista, caminho)
+            print(f"[SUCESSO] Status alterado para: {status}")
+            return
+    print("[ERRO] Protocolo não encontrado.")
